@@ -46,17 +46,6 @@ public class Server {
         Client client = new Client("default-username", socket);
         addClientToQueue(client);
         checkForNewGame();
-        // InputStream input = socket.getInputStream();
-        // BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-        // String message = reader.readLine();
-        // System.out.println("New client connected: " + message);
-
-        // String msgToClient = "You connected to the Game";
-        // writeToClient(socket, msgToClient);
-
-        // assignPlayerToGame(socket);
-
-        // monitorSocket(socket);
     }
 
     // Adds a Client to the clientQueue

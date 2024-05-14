@@ -1,0 +1,2 @@
+# Don't include compiled java files (recursive)
+**/*.class
