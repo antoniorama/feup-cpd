@@ -7,8 +7,7 @@ public class Client {
     private String username;
     private Socket socket;
 
-    public Client(String username, Socket socket) {
-        this.username = username;
+    public Client(Socket socket) {
         this.socket = socket;
     }
 
@@ -16,8 +15,55 @@ public class Client {
         return username;
     }
 
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
     public Socket getSocket() {
         return socket;
+    }
+
+    private void sendMessageToServer(String message, Socket serverSocket) throws IOException{
+        OutputStream output = serverSocket.getOutputStream();
+        PrintWriter writer = new PrintWriter(output, true);
+        writer.println(message);
+    }
+
+    private void readServerMessages(Socket socket) throws IOException {
+        InputStream input = socket.getInputStream();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+        String time = reader.readLine();
+        System.out.println(time);
+    }
+
+    private String readMessageFromServer(Socket socket) throws IOException {
+        InputStream input = socket.getInputStream();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+        return reader.readLine();
+    }
+
+    private void authenticationCommunication(Socket socket) throws IOException {
+        BufferedReader consoleReader = new BufferedReader(new InputStreamReader(System.in));
+        while (true) {
+            String serverMessage = readMessageFromServer(socket);
+
+            if (serverMessage.equals(Communication.AUTH)) {
+                System.out.print("Username: ");
+                String username = consoleReader.readLine();
+                sendMessageToServer(username, socket);
+            } else if (serverMessage.equals(Communication.PASS)) {
+                System.out.print("Password: ");
+                String password = consoleReader.readLine();
+                sendMessageToServer(password, socket);
+            } else if (serverMessage.equals(Communication.AUTH_FAIL)) {
+                System.out.println("Authentication failed. Disconnecting...");
+                socket.close();
+                break;
+            } else if (serverMessage.equals(Communication.AUTH_SUCCESS)) {
+                System.out.println("Authenticated successfully.");
+                break;
+            }
+        }
     }
 
     public static void main(String[] args) {
@@ -28,16 +74,12 @@ public class Client {
 
         try (Socket socket = new Socket(hostname, port)) {
 
-            String connectedMsg = String.format("Player connected");
-            OutputStream output = socket.getOutputStream();
-            PrintWriter writer = new PrintWriter(output, true);
-            writer.println(connectedMsg);
+            Client client = new Client(socket);
+
+            client.authenticationCommunication(socket);
 
             while (true) {
-                InputStream input = socket.getInputStream();
-                BufferedReader reader = new BufferedReader(new InputStreamReader(input));
-                String time = reader.readLine();
-                System.out.println(time);
+                client.readServerMessages(socket);
             }
 
         } catch (UnknownHostException ex) {

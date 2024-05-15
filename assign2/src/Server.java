@@ -26,33 +26,64 @@ public class Server {
     private final List<Game> gameList;
     private final Lock gameList_lock = new ReentrantLock();
 
-    public Server() {
+    // Database
+    private final UserDatabase userDatabase;
+    private final Lock userDatabase_lock = new ReentrantLock();
+
+    public Server() throws IOException{
         this.clientQueue = new ArrayList<Client>();
         this.gameList = new ArrayList<Game>();
+        this.userDatabase = new UserDatabase();
         executor = Executors.newFixedThreadPool(MAX_NUMBER_GAMES);
     }
 
-    private void writeToClient(Socket clientSocket, String message) {
-        try {
-            OutputStream output = clientSocket.getOutputStream();
-            PrintWriter writer = new PrintWriter(output, true);
-            writer.println(message);
-        } catch (IOException exception) {
-            System.out.println("Error writing to Server: " + exception.getMessage());
-        }
+    private void writeToClient(Socket clientSocket, String message) throws IOException{
+        OutputStream output = clientSocket.getOutputStream();
+        PrintWriter writer = new PrintWriter(output, true);
+        writer.println(message);
+    }
+
+    private String readFromClient(Socket clientSocket) throws IOException {
+        InputStream input = clientSocket.getInputStream();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(input));
+        return reader.readLine();
     }
 
     private void handleClient(Socket socket) throws IOException {
-        Client client = new Client("default-username", socket);
-        addClientToQueue(client);
-        checkForNewGame();
+        Client client = new Client(socket);
+        System.out.println("[AUTH] A Client is authenticating");
+        if (authenticateClient(client)) {
+            System.out.println("[AUTH] " + client.getUsername() + " authenticated successfully");
+            writeToClient(client.getSocket(), Communication.AUTH_SUCCESS);
+            addClientToQueue(client);
+            checkForNewGame();
+        } else {
+            System.out.println("[AUTH] " + client.getUsername() + " failed authentication");
+            writeToClient(socket, Communication.AUTH_FAIL);
+            socket.close();
+        }
+    }
+
+    private boolean authenticateClient(Client client) throws IOException{
+        writeToClient(client.getSocket(), Communication.AUTH);
+        String username = readFromClient(client.getSocket());
+        client.setUsername(username);
+
+        writeToClient(client.getSocket(), Communication.PASS);
+        String password = readFromClient(client.getSocket());
+
+        userDatabase_lock.lock();
+        boolean authSuccess = userDatabase.authenticate(username, password) == true;
+        userDatabase_lock.unlock();
+
+        return authSuccess;
     }
 
     // Adds a Client to the clientQueue
     private void addClientToQueue(Client client) {
         clientQueue_lock.lock();
         clientQueue.add(client);
-        String log = String.format("Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
+        String log = String.format("[QUEUE] Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
         System.out.println(log);
         clientQueue_lock.unlock();
     }
