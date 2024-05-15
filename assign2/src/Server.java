@@ -1,11 +1,13 @@
 import java.io.*;
 import java.net.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -30,11 +32,15 @@ public class Server {
     private final UserDatabase userDatabase;
     private final Lock userDatabase_lock = new ReentrantLock();
 
+    // Heartbeat Ping
+    private final int PING_INTERVAL = 3;
+
     public Server() throws IOException{
         this.clientQueue = new ArrayList<Client>();
         this.gameList = new ArrayList<Game>();
         this.userDatabase = new UserDatabase();
         executor = Executors.newFixedThreadPool(MAX_NUMBER_GAMES);
+        schedulePing();
     }
 
     private void writeToClient(Socket clientSocket, String message) throws IOException{
@@ -62,6 +68,8 @@ public class Server {
             writeToClient(socket, Communication.AUTH_FAIL);
             socket.close();
         }
+
+        pingAllClients();
     }
 
     private boolean authenticateClient(Client client) throws IOException{
@@ -108,44 +116,61 @@ public class Server {
         clientQueue.clear();
     }
 
-    // private void removePlayerFromGame(Socket socket) {
-    //     for (Game game : ongoingGames) {
-    //         if (game.getPlayerSockets().contains(socket)) {
-    //             System.out.println("A player disconnected.");
-    //             game.removePlayer(socket);
-    //         }
-    //     }
-    // }
-    
-    // monitor the socket's input stream. 
-    // When the socket is disconnected, it will catch an IOException.
-    // private void monitorSocket(Socket socket) {
-    //     executor.execute(() -> {
-    //         try {
-    //             InputStream input = socket.getInputStream();
-    //             while (input.read() != -1) {
-    //                 // Keep reading to detect socket disconnection
-    //             }
-    //         } catch (IOException e) {
-    //             // Socket is disconnected
-    //             System.out.println("A player disconnected 2.");
-    //             removePlayerFromGame(socket);
-    //         }
-    //     });
-    // }
+    // Pings client
+    private boolean pingClient(Client client) throws IOException {
+        writeToClient(client.getSocket(), Communication.PING);
 
-    // private void pingClients() {
-    //     scheduler.scheduleAtFixedRate(() -> {
-    //         long currentTime = System.currentTimeMillis();
-    //         for (Socket socket : clientLastPingTime.keySet()) {
-    //             if (currentTime - clientLastPingTime.get(socket) > 5000) { // 5 seconds timeout
-    //                 removePlayerFromGame(socket);
-    //             } else {
-    //                 writeToClient(socket, "PING");
-    //             }
-    //         }
-    //     }, 0, 5, TimeUnit.SECONDS); // Ping every 5 seconds
-    // }
+        ExecutorService pingExecutor = Executors.newSingleThreadExecutor();
+        Future<Boolean> future = pingExecutor.submit(() -> {
+            try {
+                String response = readFromClient(client.getSocket());
+                if (response.equals(Communication.PONG)) {
+                    client.setLastResponseTime();
+                    return true;
+                }
+            } catch (IOException e) {
+                // Ignore, we'll handle the client removal below
+            }
+            return false;
+        });
+
+        try {
+            return future.get(2, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            return false;
+        } finally {
+            pingExecutor.shutdown();
+        }
+    }
+
+    // Ping all clients in Queue
+    private void pingAllClients() throws IOException {
+        clientQueue_lock.lock();
+        try {
+            Iterator<Client> iterator = clientQueue.iterator();
+            while (iterator.hasNext()) {
+                Client client = iterator.next();
+                if (!pingClient(client)) {
+                    iterator.remove();
+                    String log = String.format("[QUEUE] Client %s disconnected (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
+                    System.out.println(log);
+                    client.getSocket().close();
+                }
+            }
+        } finally {
+            clientQueue_lock.unlock();
+        }
+    }
+
+    private void schedulePing() throws IOException {
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                pingAllClients();
+            } catch (IOException e) {
+                System.out.println("Failed to ping clients: " + e.getMessage());
+            }
+        }, 0, PING_INTERVAL, TimeUnit.SECONDS);
+    }
 
     public static void main(String[] args) {
         if (args.length < 1) return;
