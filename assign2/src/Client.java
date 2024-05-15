@@ -6,10 +6,12 @@ public class Client {
 
     private String username;
     private Socket socket;
+    private int rank; 
     private long lastResponseTime;
     private BufferedReader consoleReader;
     private BufferedReader serverReader;
     private PrintWriter serverWriter;
+
 
     public Client(Socket socket) throws IOException {
         this.socket = socket;

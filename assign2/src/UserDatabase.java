@@ -41,16 +41,32 @@ public class UserDatabase {
         }
     }
 
+    public void assignRank(String username, int rank) throws IOException {
+        User user = users.get(username);
+        if (user != null) {
+            user.setRank(rank);
+            saveUsers();
+        }
+    }
+
+    public int getUserRank(String username) {
+        User user = users.get(username);
+        return user != null ? user.getScore() : -1; // Return -1 if user is not found
+    }
+
     public static class User {
         private String password;
         private int score;
+        private int rank;
+
 
         public User() {
         }
 
-        public User(String password, int score) {
+        public User(String password, int score, int rank) {
             this.password = password;
             this.score = score;
+            this.rank = rank;
         }
 
         public String getPassword() {
@@ -68,6 +84,17 @@ public class UserDatabase {
         public void setScore(int score) {
             this.score = score;
         }
+
+        public int getRank() {
+            return rank;
+        }
+
+        public void setRank(Integer rank) {
+            this.rank = rank;
+        }
+
+
+
     }
 
     // Main method only for testing purposes

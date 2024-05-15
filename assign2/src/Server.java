@@ -81,7 +81,12 @@ public class Server {
         String password = readFromClient(client.getSocket());
 
         userDatabase_lock.lock();
-        boolean authSuccess = userDatabase.authenticate(username, password) == true;
+        boolean authSuccess = userDatabase.authenticate(username, password);
+
+        // get the rank of current user
+        if (authSuccess){
+            int userRank = userDatabase.getUserRank(username);
+        }
         userDatabase_lock.unlock();
 
         return authSuccess;
