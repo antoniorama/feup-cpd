@@ -32,15 +32,21 @@ public class Server {
     private final UserDatabase userDatabase;
     private final Lock userDatabase_lock = new ReentrantLock();
 
-    // Heartbeat Ping
+    // - Time Intervals (in seconds) -
+    // Interval to send PING to all clients
     private final int PING_INTERVAL = 3;
+    // Interval to notify clients of their Queue position
+    private final int NOTIFY_QUEUE_POS_INTERVAL = 10;
 
     public Server() throws IOException{
         this.clientQueue = new ArrayList<Client>();
         this.gameList = new ArrayList<Game>();
         this.userDatabase = new UserDatabase();
         executor = Executors.newFixedThreadPool(MAX_NUMBER_GAMES);
+
+        // Schedulers
         schedulePing();
+        scheduleNotifyQueuePos();
     }
 
     private void writeToClient(Socket clientSocket, String message) throws IOException{
@@ -93,9 +99,10 @@ public class Server {
     }
 
     // Adds a Client to the clientQueue
-    private void addClientToQueue(Client client) {
+    private void addClientToQueue(Client client) throws IOException{
         clientQueue_lock.lock();
         clientQueue.add(client);
+        notifyClientPosition(client, clientQueue.size());
         String log = String.format("[QUEUE] Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
         System.out.println(log);
         clientQueue_lock.unlock();
@@ -163,7 +170,7 @@ public class Server {
                 }
             }
         } finally {
-            clientQueue_lock.unlock();
+            clientQueue_lock.unlock();  
         }
     }
 
@@ -175,6 +182,31 @@ public class Server {
                 System.out.println("Failed to ping clients: " + e.getMessage());
             }
         }, 0, PING_INTERVAL, TimeUnit.SECONDS);
+    }
+
+    private void scheduleNotifyQueuePos() throws IOException {
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                notifyAllClientsPositions();;
+            } catch (IOException e) {
+                System.out.println("[ERROR] Failed to notify clients positions: " + e.getMessage());
+            }
+        }, 0, NOTIFY_QUEUE_POS_INTERVAL, TimeUnit.SECONDS);
+    }
+
+    // Sends a message to the Client regarding his Queue position
+    private void notifyClientPosition(Client client, int position) throws IOException {
+        String message = "Your queue position: " + String.valueOf(position);
+        writeToClient(client.getSocket(), message);
+    }
+
+    // Notifies all clients of their Queue position
+    private void notifyAllClientsPositions() throws IOException {
+        clientQueue_lock.lock();
+        for (int i = 0; i < clientQueue.size(); i++) {
+            notifyClientPosition(clientQueue.get(i), i + 1);
+        }
+        clientQueue_lock.unlock();
     }
 
     public static void main(String[] args) {
