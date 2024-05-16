@@ -36,13 +36,19 @@ public class Server {
     private final int PING_INTERVAL = 3;
     // Interval to notify clients of their Queue position
     private final int NOTIFY_QUEUE_POS_INTERVAL = 10;
+    // Interval to relax Matchmaking
+    private final int RELAX_MATCHMAKING_INTERVAL = 30;
 
     // Game Mode : 0 -> Simple , 1 -> Ranked
     private final int gameMode;
+    private static final int SIMPLE = 0;
+    private static final int RANKED = 1;
 
-    // Ranked Mode
-    private final int MATCHMAKING_MAX_DIFF = 100;
-
+    // - Ranked Mode -
+    // Maximum difference beetween player's Ranks
+    private int MATCHMAKING_MAX_DIFF = 100;
+    // Ammount of Rank to relax (add to MATCHMAKING_MAX_DIFF)
+    private int MATCHMAKING_RELAX = 100;
 
     public Server(int gameMode) throws IOException{
         this.clientQueue = new ArrayList<Client>();
@@ -54,6 +60,9 @@ public class Server {
         // Schedulers
         schedulePing();
         scheduleNotifyQueuePos();
+        if (this.gameMode == RANKED) {
+            scheduleMatchmakingRelax();
+        }
     }
 
     private void writeToClient(Socket clientSocket, String message) throws IOException{
@@ -119,12 +128,10 @@ public class Server {
         clientQueue_lock.lock();
         if (clientQueue.size() >= PLAYERS_PER_GAME) {
             switch (gameMode) {
-                // Unranked
-                case 0:
+                case SIMPLE:
                     startNewGame(clientQueue);     
                     clientQueue.clear();
-                // Ranked
-                case 1:
+                case RANKED:
                     List<Client> playerList = getPlayerListRanked();
                     if (playerList != null) {
                         removeClientsFromQueue(playerList);
@@ -257,7 +264,7 @@ public class Server {
         }
         clientQueue_lock.unlock();
     }
-    
+
     // Choose Mode, Simple or Ranked
     private static int chooseGameMode() {
         try (Scanner scanner = new Scanner(System.in)) {
@@ -265,12 +272,12 @@ public class Server {
                 System.out.print("Choose Type of Mode Simple(0) or Ranked(1): ");
                 if (scanner.hasNextInt()) {
                     int modeChoice = scanner.nextInt();
-                    if (modeChoice == 0) {
+                    if (modeChoice == SIMPLE) {
                         System.out.println("Simple Mode Selected");
-                        return 0;
-                    } else if (modeChoice == 1) {
+                        return SIMPLE;
+                    } else if (modeChoice == RANKED) {
                         System.out.println("Ranked Mode Selected");
-                        return 1;
+                        return RANKED;
                     } else {
                         System.out.println("Invalid Mode Selected. Please enter 0 for Simple or 1 for Ranked.");
                     }
@@ -282,6 +289,18 @@ public class Server {
         }
     }
 
+    private void relaxMatchmaking() {
+        MATCHMAKING_MAX_DIFF += MATCHMAKING_RELAX;
+        System.out.println("[MATCHMAKING] Increased Max Difference to " + MATCHMAKING_MAX_DIFF);
+    }
+
+    private void scheduleMatchmakingRelax() throws IOException {
+        scheduler.scheduleAtFixedRate(() -> {
+            relaxMatchmaking();
+            checkForNewGame();
+        }, RELAX_MATCHMAKING_INTERVAL, RELAX_MATCHMAKING_INTERVAL, TimeUnit.SECONDS);
+    }
+
     public static void main(String[] args) {
         if (args.length < 1) return;
 
@@ -291,10 +310,8 @@ public class Server {
 
         try (ServerSocket serverSocket = new ServerSocket(port)) {
 
-            System.out.println("Server is listening on port " + port);
-
             Server server = new Server(gameMode);
-            // server.pingClients();
+            System.out.println("Server is listening on port " + port);
 
             while (true) {
                 Socket socket = serverSocket.accept();
