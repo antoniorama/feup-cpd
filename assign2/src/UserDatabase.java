@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import java.util.UUID;
 
 public class UserDatabase {
     private static final String FILE_PATH = "src/database/users.json";
@@ -46,10 +47,40 @@ public class UserDatabase {
         return user != null ? user.getRank() : -1; // Return -1 if user is not found
     }
 
+    public String generateSessionToken() {
+        return UUID.randomUUID().toString();
+    }
+
+    public void assignSessionToken(String username) throws IOException {
+        User user = users.get(username);
+        if (user != null) {
+            String token = generateSessionToken();
+            user.setSessionToken(token);
+            saveUsers();
+        }
+    }
+
+    public String getSessionToken(String username) {
+        User user = users.get(username);
+        return user != null ? user.getSessionToken() : null;
+    }
+
+    // Gets username form a sessionToken
+    // returns null if no user found with that sessionToken
+    public String getUsernameFromToken(String sessionToken) {
+        for (Map.Entry<String, User> entry : users.entrySet()) {
+            String retrievedToken = entry.getValue().getSessionToken();
+            if (retrievedToken != null && retrievedToken.equals(sessionToken)) {
+                return entry.getKey();
+            }
+        }
+        return null;
+    }
+
     public static class User {
         private String password;
         private int rank;
-
+        private String sessionToken;
 
         public User() {
         }
@@ -75,7 +106,13 @@ public class UserDatabase {
             this.rank = rank;
         }
 
-
+        public String getSessionToken() {
+            return sessionToken;
+        }
+    
+        public void setSessionToken(String sessionToken) {
+            this.sessionToken = sessionToken;
+        }
 
     }
 

@@ -2,3 +2,4 @@
 **/*.class
 /assign2.iml
 /java
+/src/database/**

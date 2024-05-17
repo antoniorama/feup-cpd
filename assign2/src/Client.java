@@ -11,6 +11,7 @@ public class Client {
     private BufferedReader consoleReader;
     private BufferedReader serverReader;
     private PrintWriter serverWriter;
+    private String sessionToken;
 
 
     public Client(Socket socket) throws IOException {
@@ -40,6 +41,14 @@ public class Client {
         this.rank = rank;
     }
 
+    public void setSessionToken(String sessionToken) {
+        this.sessionToken = sessionToken;
+    }
+
+    public void clearSessionToken() {
+        this.sessionToken = "";
+    }
+
     public long getLastResponseTime() {
         return lastResponseTime;
     }
@@ -57,6 +66,7 @@ public class Client {
             case Communication.AUTH:
                 System.out.print("Username: ");
                 String username = consoleReader.readLine();
+                setUsername(username);
                 sendMessageToServer(username);
                 break;
             case Communication.PASS:
@@ -74,12 +84,32 @@ public class Client {
         }
     }
 
+    private void handleServerReconnection(String serverMessage) throws IOException {
+        if (serverMessage.startsWith(Communication.RECONNECT_SUCCESS)) {
+            String queuePos = getMessageContent(serverMessage);
+            System.out.println("Reconnected with position " + queuePos);
+        } else if (serverMessage.equals(Communication.RECONNECT_FAIL)) {
+            System.out.println("Reconnection failed. Disconnecting...");
+            this.socket.close();
+        } 
+    }
+
     private void handleServerMessage(String serverMessage) throws IOException {
         if (serverMessage.equals(Communication.PING)) {
             sendMessageToServer(Communication.PONG);
         } else if (Communication.AUTH_MESSAGES.contains(serverMessage)) {
             handleAuthentication(serverMessage);
-        } else {
+        } else if (serverMessage.startsWith(Communication.TOKEN)) {
+            storeToken(getMessageContent(serverMessage));
+        } else if (serverMessage.equals(Communication.WELCOME)) {
+            handleServerWelcome();
+        } else if (serverMessage.equals(Communication.REQUEST_TOKEN)) {
+            sendMessageToServer(retrieveToken());
+        }
+        else if (serverMessage.startsWith("RECONNECT")) {
+            handleServerReconnection(serverMessage);
+        }
+        else {
             System.out.println(serverMessage);
         }
     }
@@ -88,6 +118,72 @@ public class Client {
         String serverMessage;
         while ((serverMessage = serverReader.readLine()) != null) {
             handleServerMessage(serverMessage);
+        }
+    }
+
+    // Example : "PROTOCOL CONTENT"
+    // retrieves CONTENT
+    private String getMessageContent(String serverMessage) {
+        String[] parts = serverMessage.split(" ");
+        if (parts.length >= 2) {
+            return parts[1];
+        } else {
+            return "";
+        }
+    }
+
+    // Stores the token in a file 
+    // This simulates what would be the Client's system storage
+    private void storeToken(String sessionToken) {
+        try {
+            String filename = "token-" + this.username + ".txt";
+            File file = new File("src/database/tokens/" + filename);
+
+            // Create the file if it doesn't exist
+            FileWriter writer = new FileWriter(file, false);
+            writer.write(sessionToken);
+            writer.close();
+            System.out.println("Token stored successfully.");
+        } catch (IOException e) {
+            System.out.println("Error storing token: " + e.getMessage());
+        }
+    }
+
+    // Gets the token from the Client's 'system'
+    private String retrieveToken() throws IOException {
+        try {
+            System.out.print("Token filename: ");
+            String filename = consoleReader.readLine();
+            File file = new File("src/database/tokens/" + filename);
+            BufferedReader reader = new BufferedReader(new FileReader(file));
+            String line = reader.readLine();
+            reader.close();
+            return line;
+        } catch (IOException e) {
+            System.out.println("Your session token is invalid");
+            System.out.println("Disconnecting...");
+            this.socket.close();
+            return null;
+        }
+    }
+
+    private void handleServerWelcome() throws IOException{
+        System.out.println("1. Log In");
+        System.out.println("2. Reconnect");
+        System.out.print("Select: ");
+        String answer = consoleReader.readLine();
+
+        switch (answer) {
+            case "1":
+                sendMessageToServer(Communication.CLIENT_AUTH);
+                break;
+
+            case "2":
+                sendMessageToServer(Communication.CLIENT_RECONNECT);
+                break;
+        
+            default:
+                break;
         }
     }
 
