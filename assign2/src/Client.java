@@ -78,6 +78,9 @@ public class Client {
                 System.out.println("Authentication failed. Disconnecting...");
                 socket.close();
                 break;
+            case Communication.AUTH_ALREADY_LOGGED_IN:
+                System.out.println("User is already logged in.");
+                break;
             case Communication.AUTH_SUCCESS:
                 System.out.println("Authenticated successfully.");
                 break;
@@ -88,6 +91,8 @@ public class Client {
         if (serverMessage.startsWith(Communication.RECONNECT_SUCCESS)) {
             String queuePos = getMessageContent(serverMessage);
             System.out.println("Reconnected with position " + queuePos);
+        } else if (serverMessage.equals(Communication.RECONNECT_ALREADY_LOGGED_IN)) {
+            System.out.println("You are already logged in.");
         } else if (serverMessage.equals(Communication.RECONNECT_FAIL)) {
             System.out.println("Reconnection failed. Disconnecting...");
             this.socket.close();

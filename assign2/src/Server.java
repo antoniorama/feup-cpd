@@ -14,10 +14,11 @@ import java.util.concurrent.locks.ReentrantLock;
 public class Server {
     private final ExecutorService executor;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-    
+
     // General Info
     private final int MAX_NUMBER_GAMES = 5;
     private final int PLAYERS_PER_GAME = 3;
+    private final Set<String> loggedInUsers;
 
     // Client Queue
     private final List<Client> clientQueue;
@@ -47,20 +48,39 @@ public class Server {
     // - Ranked Mode -
     // Maximum difference beetween player's Ranks
     private int MATCHMAKING_MAX_DIFF = 100;
-    // Ammount of Rank to relax (add to MATCHMAKING_MAX_DIFF)
+    // Amount of Rank to relax (add to MATCHMAKING_MAX_DIFF)
     private int MATCHMAKING_RELAX = 100;
 
     // {username : position}
     // Stores the client's queue position when he disconnects
     // This shares the lock with the userDatabase
-    private Map<String, Integer> reconnectPosition;
+    private final Map<String, Integer> reconnectPosition;
 
     public Server(int gameMode) throws IOException{
         this.clientQueue = new ArrayList<Client>();
         this.gameList = new ArrayList<Game>();
         this.userDatabase = new UserDatabase();
         this.gameMode = gameMode;
+        this.loggedInUsers = new HashSet<>();
         executor = Executors.newFixedThreadPool(MAX_NUMBER_GAMES);
+
+        File directory = new File("src/database/tokens/");
+        if (!directory.exists()) {
+            boolean success = directory.mkdirs();
+            if (!success) {
+                throw new IOException("Failed to create tokens directory");
+            }
+        } else {
+            File[] files = directory.listFiles();
+            if (files != null) {
+                for (File file : files) {
+                    boolean success = file.delete();
+                    if (!success) {
+                        throw new IOException("Failed to delete token file");
+                    }
+                }
+            }
+        }
 
         // Schedulers
         schedulePing();
@@ -118,9 +138,14 @@ public class Server {
     // 2. Reconnect with Token
     private String questionClient(Client client) throws IOException{
         writeToClient(client.getSocket(), Communication.WELCOME);
-        String answer = readFromClient(client.getSocket());
-        return answer;
+        return readFromClient(client.getSocket());
     }
+
+    private void userLoggedIn(String username) { loggedInUsers.add(username); }
+
+    private void userLoggedOut(String username) { loggedInUsers.remove(username); }
+
+    private boolean isUserLoggedIn(String username) { return loggedInUsers.contains(username); }
 
     private void handleClientAuthentication(Client client) throws IOException{
         if (authenticateClient(client)) {
@@ -128,6 +153,7 @@ public class Server {
             writeToClient(client.getSocket(), Communication.AUTH_SUCCESS);
             assignToken(client);
             addClientToQueue(client);
+            userLoggedIn(client.getUsername());
             checkForNewGame();
         } else {
             System.out.println("[AUTH] " + client.getUsername() + " failed authentication");
@@ -148,11 +174,17 @@ public class Server {
         boolean authSuccess = userDatabase.authenticate(username, password);
 
         // get the rank of current user
-        if (authSuccess){
+        if (authSuccess) {
             int userRank = userDatabase.getUserRank(username);
             client.setRank(userRank);
         }
         userDatabase_lock.unlock();
+
+        if (isUserLoggedIn(username)) {
+            writeToClient(client.getSocket(), Communication.AUTH_ALREADY_LOGGED_IN);
+            System.out.println("[AUTH] " + username + " is already logged in");
+            return false;
+        }
 
         return authSuccess;
     }
@@ -204,7 +236,7 @@ public class Server {
         }
     }
 
-    // Funtion that returns the list of players to start a ranked game with close rank
+    // Function that returns the list of players to start a ranked game with close rank
     private List<Client> getPlayerListRanked() {
         List<Client> playerList = new ArrayList<Client>();
         
@@ -276,6 +308,7 @@ public class Server {
                 if (!pingClient(client)) {
                     storeQueuePosition(client);
                     iterator.remove();
+                    userLoggedOut(client.getUsername());
                     String log = String.format("[QUEUE] Client %s disconnected (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
                     System.out.println(log);
                     client.getSocket().close();
@@ -399,7 +432,13 @@ public class Server {
         try {
             String clientUsername = userDatabase.getUsernameFromToken(providedToken);
             if (clientUsername != null) { // success
+
+                if (isUserLoggedIn(clientUsername)) {
+                    writeToClient(client.getSocket(), Communication.RECONNECT_ALREADY_LOGGED_IN);
+                    return false;
+                }
                 client.setUsername(clientUsername);
+                userLoggedIn(clientUsername);
                 System.out.println("[RECONENCT] " + clientUsername + " reconnected with token");
                 return true;
             }
