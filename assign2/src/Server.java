@@ -19,6 +19,7 @@ public class Server {
     private final int MAX_NUMBER_GAMES = 5;
     private final int PLAYERS_PER_GAME = 3;
     private final Set<String> loggedInUsers;
+    private final Lock loggedInUsers_lock = new ReentrantLock();
 
     // Client Queue
     private final List<Client> clientQueue;
@@ -141,11 +142,24 @@ public class Server {
         return readFromClient(client.getSocket());
     }
 
-    private void userLoggedIn(String username) { loggedInUsers.add(username); }
+    private void userLoggedIn(String username) {
+        loggedInUsers_lock.lock();
+        try { loggedInUsers.add(username); }
+        finally { loggedInUsers_lock.unlock(); }
+    }
 
-    private void userLoggedOut(String username) { loggedInUsers.remove(username); }
+    private void userLoggedOut(String username) {
+        loggedInUsers_lock.lock();
+        loggedInUsers.remove(username);
+        loggedInUsers_lock.unlock();
+    }
 
-    private boolean isUserLoggedIn(String username) { return loggedInUsers.contains(username); }
+    private boolean isUserLoggedIn(String username) {
+        loggedInUsers_lock.lock();
+        boolean result = loggedInUsers.contains(username);
+        loggedInUsers_lock.unlock();
+        return result;
+    }
 
     private void handleClientAuthentication(Client client) throws IOException{
         if (authenticateClient(client)) {
