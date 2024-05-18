@@ -94,6 +94,7 @@ public class Client {
         } 
     }
 
+    // TODO -> REFACTOR THIS
     private void handleServerMessage(String serverMessage) throws IOException {
         if (serverMessage.equals(Communication.PING)) {
             sendMessageToServer(Communication.PONG);
@@ -108,9 +109,25 @@ public class Client {
         }
         else if (serverMessage.startsWith("RECONNECT")) {
             handleServerReconnection(serverMessage);
+        } else if (serverMessage.startsWith("REGISTER")) {
+            handleRegistration(serverMessage);
         }
         else {
             System.out.println(serverMessage);
+        }
+    }
+
+    private void handleRegistration(String serverMessage) throws IOException{
+        switch (serverMessage) {
+            case Communication.REGISTER_SUCCESS:
+                System.out.println("Account created successfully.");
+                break;
+            case Communication.REGISTER_FAIL:
+                System.out.println("Account creation failed. Disconnecting...");
+                socket.close();
+                break;
+            default:
+                break;
         }
     }
 
@@ -167,9 +184,24 @@ public class Client {
         }
     }
 
+    private void handleRegister() {
+        try {
+            System.out.println("Create your account!");
+            System.out.print("Enter username: ");
+            String username = consoleReader.readLine();
+            System.out.print("Enter password: ");
+            String password = consoleReader.readLine();
+            String msgToServer = String.format("%s %s %s", Communication.CLIENT_REGISTER, username, password);
+            sendMessageToServer(msgToServer);
+        } catch (IOException e) {
+            System.out.println("Invalid username.");
+        } 
+    }
+
     private void handleServerWelcome() throws IOException{
         System.out.println("1. Log In");
         System.out.println("2. Reconnect");
+        System.out.println("3. Create Account");
         System.out.print("Select: ");
         String answer = consoleReader.readLine();
 
@@ -180,6 +212,10 @@ public class Client {
 
             case "2":
                 sendMessageToServer(Communication.CLIENT_RECONNECT);
+                break;
+
+            case "3":
+                handleRegister();
                 break;
         
             default:

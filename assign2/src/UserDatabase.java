@@ -77,6 +77,16 @@ public class UserDatabase {
         return null;
     }
 
+    public void createUser(String username, String password) throws IOException {
+        if (!users.containsKey(username)) {
+            User newUser = new User(password, 100);
+            users.put(username, newUser);
+            saveUsers();
+        } else {
+            throw new IllegalArgumentException("Username already exists.");
+        }
+    }
+
     public static class User {
         private String password;
         private int rank;

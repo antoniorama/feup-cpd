@@ -33,4 +33,12 @@ public class Communication {
     public static final String RECONNECT_SUCCESS = "RECONNECT_SUCCESS";
     // Inform Client that reconnection was refused
     public static final String RECONNECT_FAIL = "RECONNECT_FAIL";
+    // Client sends register information to Server
+    // Message content -> <USERNAME> <PASSOWRD>
+    // Example -> "CLIENT_REGISTER myusername mypassword"
+    public static final String CLIENT_REGISTER = "CLIENT_REGISTER";
+    // Server informs Client that registration was a Success
+    public static final String REGISTER_SUCCESS = "REGISTER_SUCCESS";
+    // Server informs Client that registration Failed
+    public static final String REGISTER_FAIL = "REGISTER_FAIL";
 }
