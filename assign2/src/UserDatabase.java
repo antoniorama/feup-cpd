@@ -1,5 +1,6 @@
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,6 +11,8 @@ public class UserDatabase {
     private static final String FILE_PATH = "src/database/users.json";
     private Map<String, User> users;
     private final ObjectMapper objectMapper;
+    private BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private BCryptPasswordEncoder tokenEncoder = new BCryptPasswordEncoder();
 
     public UserDatabase() throws IOException {
         this.objectMapper = new ObjectMapper();
@@ -31,7 +34,7 @@ public class UserDatabase {
 
     public boolean authenticate(String username, String password) {
         User user = users.get(username);
-        return user != null && password.equals(user.getPassword());
+        return user != null && passwordEncoder.matches(password, user.getPassword());
     }
 
     public void assignRank(String username, int rank) throws IOException {
@@ -51,13 +54,20 @@ public class UserDatabase {
         return UUID.randomUUID().toString();
     }
 
-    public void assignSessionToken(String username) throws IOException {
+    // Assigns session token
+    // Returns not encoded session token
+    // Or null if user doesn't exist
+    public String assignSessionToken(String username) throws IOException {
         User user = users.get(username);
         if (user != null) {
             String token = generateSessionToken();
-            user.setSessionToken(token);
+            String encodedToken = tokenEncoder.encode(token);
+            user.setSessionToken(encodedToken);
             saveUsers();
+            return token;
         }
+
+        return null;
     }
 
     public String getSessionToken(String username) {
@@ -70,7 +80,7 @@ public class UserDatabase {
     public String getUsernameFromToken(String sessionToken) {
         for (Map.Entry<String, User> entry : users.entrySet()) {
             String retrievedToken = entry.getValue().getSessionToken();
-            if (retrievedToken != null && retrievedToken.equals(sessionToken)) {
+            if (retrievedToken != null && tokenEncoder.matches(sessionToken, retrievedToken)) {
                 return entry.getKey();
             }
         }
@@ -79,7 +89,8 @@ public class UserDatabase {
 
     public void createUser(String username, String password) throws IOException {
         if (!users.containsKey(username)) {
-            User newUser = new User(password, 100);
+            String encodedPassword = passwordEncoder.encode(password);
+            User newUser = new User(encodedPassword, 100);
             users.put(username, newUser);
             saveUsers();
         } else {

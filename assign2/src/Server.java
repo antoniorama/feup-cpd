@@ -361,8 +361,7 @@ public class Server {
     private void assignToken(Client client) throws IOException {
         userDatabase_lock.lock();
         try {
-            userDatabase.assignSessionToken(client.getUsername());
-            String sessionToken = userDatabase.getSessionToken(client.getUsername());
+            String sessionToken = userDatabase.assignSessionToken(client.getUsername());
             writeToClient(client.getSocket(), Communication.TOKEN + " " + sessionToken);
         } finally {
             userDatabase_lock.unlock();
