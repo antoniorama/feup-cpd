@@ -71,9 +71,11 @@ public class Server {
             File[] files = directory.listFiles();
             if (files != null) {
                 for (File file : files) {
-                    boolean success = file.delete();
-                    if (!success) {
-                        throw new IOException("Failed to delete token file");
+                    if (!file.getName().equals(".empty")) {
+                        boolean success = file.delete();
+                        if (!success) {
+                            throw new IOException("Failed to delete token file");
+                        }
                     }
                 }
             }
