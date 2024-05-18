@@ -66,12 +66,8 @@ public class Server {
         executor = Executors.newFixedThreadPool(MAX_NUMBER_GAMES);
 
         File directory = new File("src/database/tokens/");
-        if (!directory.exists()) {
-            boolean success = directory.mkdirs();
-            if (!success) {
-                throw new IOException("Failed to create tokens directory");
-            }
-        } else {
+        if (directory.exists()) {
+
             File[] files = directory.listFiles();
             if (files != null) {
                 for (File file : files) {

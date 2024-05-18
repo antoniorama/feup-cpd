@@ -3,3 +3,5 @@
 /assign2.iml
 /java
 .idea
+src/database/users.json
+src/database/tokens/*
