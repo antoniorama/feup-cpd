@@ -35,6 +35,10 @@ java -cp "lib/*:out" Client localhost <port>
 
 Again, replace port with the same port number used to start the server.
 
+## Game
+
+Our game is a simple 1v1 trivia contest where each player answers true or false questions over multiple rounds. The player with the most correct answers at the end of the rounds wins the game.
+
 ## User Database
 
 ### Overview
@@ -76,3 +80,7 @@ Communication between the server and clients is facilitated through socket progr
 ### Protocol and Macros
 
 The specific protocol rules and message formats used during socket communication are defined in the **Communication** class. This class contains macros that standardize the message structure, making it easier to parse and handle different types of communication events consistently across the system.
+
+## Reconnection with Token
+
+We have implemented a session token system that enables clients to reconnect and retain their queue position. Upon login, a session token is generated and stored as token-"client_username" in the /database/tokens directory. This approach simulates a real client storage system. To reconnect, clients must provide the filename containing their session token.
