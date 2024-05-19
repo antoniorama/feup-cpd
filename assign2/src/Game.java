@@ -43,6 +43,7 @@ public class Game {
         return this.gameId;
     }
 
+    // Loads trivia questions from database
     public void loadQuestions(String dataPath) {
         File jsonFile = new File(dataPath);
         ObjectMapper objectMapper = new ObjectMapper();
@@ -53,6 +54,7 @@ public class Game {
         }
     }
 
+    // Starts the game
     public void startGame() throws IOException {
         loadQuestions("src/database/questions.json");
         isGameRunning = true;
@@ -67,6 +69,7 @@ public class Game {
         loop();
     }
 
+    // Main game loop -> asks questions until rounds are over and then ends game
     private void loop() throws IOException{
         for (int round = 0; round < ROUNDS && isGameRunning; round++) {
             String log = String.format("[Game %d] Started Round %d", gameId, round + 1);
@@ -76,7 +79,7 @@ public class Game {
         endGame();
     }
 
-
+    // Ends the game
     private void endGame() throws IOException {
         isGameRunning = false;
         Client winner = determineWinner();
@@ -97,6 +100,7 @@ public class Game {
         playerThreadPool.shutdown();
     }
 
+    // Determine who is the winner of the game
     private Client determineWinner() {
         Client winner = null;
         int highestScore = -1;
@@ -114,6 +118,7 @@ public class Game {
         return winner;
     }
 
+    // Sends a message for both players
     private void broadcastMessage(String message) {
         playerList_lock.lock();
         try {
@@ -129,6 +134,7 @@ public class Game {
         }
     }
 
+    // Asks a question to both players
     private void askQuestionToAllPlayers() {
         TriviaResult question = triviaResponse.getRandomQuestion();
         broadcastMessage("Round Question: " + question.getQuestion());
@@ -158,6 +164,7 @@ public class Game {
         }
     }
 
+    // Handles player's question answer
     private void handlePlayerAnswer(Client player, String correctAnswer, CountDownLatch latch) {
         try {
             Server.writeToClient(player.getSocket(), Communication.PROVIDE_ANSWER);

@@ -20,6 +20,7 @@ public class UserDatabase {
         loadUsers();
     }
 
+    // Loads users from database file
     private void loadUsers() throws IOException {
         File file = new File(FILE_PATH);
         if (file.exists()) {
@@ -33,15 +34,18 @@ public class UserDatabase {
         }
     }
 
+    // Saves users to database file
     private void saveUsers() throws IOException {
         objectMapper.writeValue(new File(FILE_PATH), users);
     }
 
+    // Verifies if user with username:password exists in the database file
     public boolean authenticate(String username, String password) {
         User user = users.get(username);
         return user != null && passwordEncoder.matches(password, user.getPassword());
     }
 
+    // Assigns 'rank' to user with 'username'
     public void assignRank(String username, int rank) throws IOException {
         User user = users.get(username);
         if (user != null) {
@@ -60,11 +64,13 @@ public class UserDatabase {
         }
     }
 
+    // Gets rank from user with 'username'
     public int getUserRank(String username) {
         User user = users.get(username);
         return user != null ? user.getRank() : -1; // Return -1 if user is not found
     }
 
+    // Generates a unique session token
     public String generateSessionToken() {
         return UUID.randomUUID().toString();
     }
@@ -85,6 +91,7 @@ public class UserDatabase {
         return null;
     }
 
+    // Gets session token from user
     public String getSessionToken(String username) {
         User user = users.get(username);
         return user != null ? user.getSessionToken() : null;
@@ -102,6 +109,7 @@ public class UserDatabase {
         return null;
     }
 
+    // Creates a new user and adds it to the database
     public void createUser(String username, String password) throws IOException {
 
         if (!users.containsKey(username)) {

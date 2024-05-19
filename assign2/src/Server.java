@@ -81,22 +81,26 @@ public class Server {
         this.reconnectPosition = new HashMap<>();
     }
 
+    // Write message to client
     public static void writeToClient(Socket clientSocket, String message) throws IOException{
         OutputStream output = clientSocket.getOutputStream();
         PrintWriter writer = new PrintWriter(output, true);
         writer.println(message);
     }
 
+    // Read message from client
     public static String readFromClient(Socket clientSocket) throws IOException {
         InputStream input = clientSocket.getInputStream();
         BufferedReader reader = new BufferedReader(new InputStreamReader(input));
         return reader.readLine();
     }
 
+    // Add a log in server's UI
     public static void serverLog(String log) {
         System.out.println(log);
     }
 
+    // State machine to handle messages received from client
     private void handleClient(Socket socket) throws IOException {
         Client client = new Client(socket);
         String clientAction = questionClient(client);
@@ -159,6 +163,7 @@ public class Server {
         }
     }
 
+    // Handles client authentication
     private void handleClientAuthentication(Client client) throws IOException{
         if (authenticateClient(client)) {
             System.out.println("[AUTH] " + client.getUsername() + " authenticated successfully");
@@ -173,6 +178,7 @@ public class Server {
         }
     }
 
+    // Verifies if client is valid and acts accordingly
     private boolean authenticateClient(Client client) throws IOException {
         writeToClient(client.getSocket(), Communication.USERNAME);
         String username = readFromClient(client.getSocket());
@@ -212,6 +218,7 @@ public class Server {
         return true;
     }
 
+    // Handles client registration
     private void handleClientRegistration(Client client) throws IOException {
         if (registerClient(client)) {
             System.out.println("[AUTH] " + client.getUsername() + " registered successfully");
@@ -225,6 +232,7 @@ public class Server {
         }
     }
 
+    // Verifies if registration is valid and acts accordingly
     private boolean registerClient(Client client) throws IOException {
         writeToClient(client.getSocket(), Communication.USERNAME);
         String username = readFromClient(client.getSocket());
@@ -253,6 +261,7 @@ public class Server {
         return true;
     }
 
+    // Handles error when client is registering
     private void handleRegistrationError(Client client, Exception e) {
         try {
             writeToClient(client.getSocket(), Communication.REGISTER_FAIL);
@@ -433,6 +442,7 @@ public class Server {
         }
     }
 
+    // Schedules to ping clients every X seconds
     private void schedulePing() throws IOException {
         // - Time Intervals (in seconds) -
         // Interval to send PING to all clients
@@ -446,6 +456,7 @@ public class Server {
         }, 0, PING_INTERVAL, TimeUnit.SECONDS);
     }
 
+    // Schedules to notify client's of their current queue position
     private void scheduleNotifyQueuePos() throws IOException {
         // Interval to notify clients of their Queue position
         int NOTIFY_QUEUE_POS_INTERVAL = 10;
@@ -506,6 +517,7 @@ public class Server {
         System.out.println("[MATCHMAKING] Increased Max Difference to " + MATCHMAKING_MAX_DIFF);
     }
 
+    // Schedules to relax the matchmaking window
     private void scheduleMatchmakingRelax() throws IOException {
         // Interval to relax Matchmaking
         int RELAX_MATCHMAKING_INTERVAL = 30;
@@ -608,6 +620,7 @@ public class Server {
         }
     }
 
+    // Puts clients back in the queue
     public void reQueuePlayers(List<Client> clients) throws IOException {
         for (Client client : clients) {
             requeueOrExit(client);

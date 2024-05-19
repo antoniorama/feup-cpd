@@ -53,10 +53,12 @@ public class Client {
         return lastResponseTime;
     }
 
+    // Updates lastResponseTime to current time
     public void setLastResponseTime() {
         this.lastResponseTime = System.currentTimeMillis();
     }
 
+    // Send a message to the server
     public void sendMessageToServer(String message) {
         serverWriter.println(message);
     }
@@ -64,10 +66,13 @@ public class Client {
     public int getScore() {
         return currentScore;
     }
+
+    // Increments client's score by 1
     public void incrementScore() {
         this.currentScore++;
     }
 
+    // Handle client authentication
     private void handleAuthentication(String serverMessage) throws IOException {
         switch (serverMessage) {
             case Communication.USERNAME:
@@ -99,6 +104,7 @@ public class Client {
         }
     }
 
+    // Handles reconnection to server using session token
     private void handleServerReconnection(String serverMessage) throws IOException {
         if (serverMessage.startsWith(Communication.RECONNECT_SUCCESS)) {
             String queuePos = getMessageContent(serverMessage);
@@ -111,7 +117,7 @@ public class Client {
         } 
     }
 
-    // TODO -> REFACTOR THIS
+    // Main state machine to handle messages received from server
     private void handleServerMessage(String serverMessage) throws IOException {
         if (serverMessage.equals(Communication.PING)) {
             sendMessageToServer(Communication.PONG);
@@ -138,6 +144,7 @@ public class Client {
         }
     }
 
+    // Respond to quiz question and send answer to server
     private void handleQuestionAnswer() {
         System.out.print("True or False? ");
         try {
@@ -152,10 +159,12 @@ public class Client {
         }
     }
 
+    // Validate quiz answer
     private boolean validateAnswer(String answer) {
         return answer.equalsIgnoreCase("true") || answer.equalsIgnoreCase("false");
     }
 
+    // State machine that handles account creation communication with server
     private void handleRegistration(String serverMessage) throws IOException{
         switch (serverMessage) {
             case Communication.REGISTER_SUCCESS:
@@ -170,6 +179,7 @@ public class Client {
         }
     }
 
+    // Read messages received from server
     private void readServerMessages() throws IOException {
         String serverMessage;
         while (!socket.isClosed() && (serverMessage = serverReader.readLine()) != null) {
@@ -223,6 +233,7 @@ public class Client {
         }
     }
 
+    // Handles username input
     private String enterUsername() throws IOException {
         System.out.print("Enter username: ");
         String username = consoleReader.readLine();
@@ -235,6 +246,7 @@ public class Client {
         return username;
     }
 
+    // Handles password input
     private String enterPassword() throws IOException {
         System.out.print("Enter password: ");
         String password = consoleReader.readLine();
@@ -255,6 +267,7 @@ public class Client {
         sendMessageToServer(msgToServer);
     }
 
+    // Handles server welcome message (first message received upon connection)
     private void handleServerWelcome() throws IOException{
         System.out.println("1. Log In");
         System.out.println("2. Reconnect");
@@ -280,6 +293,7 @@ public class Client {
         }
     }
 
+    // Select if client wants to requeue or quit after a game finishes
     private void handleRequeueOrExit() {
         try {
             System.out.println("1. Requeue");
