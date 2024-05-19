@@ -12,7 +12,6 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Server {
-    private final ExecutorService executor;
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     // General Info
@@ -63,7 +62,6 @@ public class Server {
         this.userDatabase = new UserDatabase();
         this.gameMode = gameMode;
         this.loggedInUsers = new HashSet<>();
-        executor = Executors.newFixedThreadPool(MAX_NUMBER_GAMES);
 
         File directory = new File("src/database/tokens/");
         if (directory.exists()) {
@@ -525,7 +523,7 @@ public class Server {
 
             while (true) {
                 Socket socket = serverSocket.accept();
-                server.executor.execute(() -> {
+                Thread.startVirtualThread(() -> {
                     try {
                         server.handleClient(socket);
                     } catch (IOException e) {

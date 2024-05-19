@@ -4,6 +4,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -22,6 +23,10 @@ public class UserDatabase {
     private void loadUsers() throws IOException {
         File file = new File(FILE_PATH);
         if (file.exists()) {
+            if (file.length() == 0) {
+                users = new HashMap<>();
+                return;
+            }
             users = objectMapper.readValue(file, new TypeReference<Map<String, User>>() {});
         } else {
             throw new IOException("User database file not found.");
