@@ -59,10 +59,19 @@ public class Game {
     public void startGame() throws IOException {
         loadQuestions("src/database/questions.json");
         isGameRunning = true;
-        broadcastMessage("Welcome to the Trivia!");
+        broadcastMessage("--------------------- Welcome to the Trivia! ---------------------");
         broadcastMessage("Questions will be given shortly. Please answer with True or False.");
         try {
-            Thread.sleep(5000);
+            Thread.sleep(1000);
+            broadcastMessage("                               5                               ");
+            Thread.sleep(1000);
+            broadcastMessage("                               4                               ");
+            Thread.sleep(1000);
+            broadcastMessage("                               3                               ");
+            Thread.sleep(1000);
+            broadcastMessage("                               2                               ");
+            Thread.sleep(1000);
+            broadcastMessage("                               1                               ");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return;
