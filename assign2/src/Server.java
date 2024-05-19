@@ -32,24 +32,14 @@ public class Server {
     private final UserDatabase userDatabase;
     private final Lock userDatabase_lock = new ReentrantLock();
 
-    // - Time Intervals (in seconds) -
-    // Interval to send PING to all clients
-    private final int PING_INTERVAL = 3;
-    // Interval to notify clients of their Queue position
-    private final int NOTIFY_QUEUE_POS_INTERVAL = 10;
-    // Interval to relax Matchmaking
-    private final int RELAX_MATCHMAKING_INTERVAL = 30;
-
     // Game Mode : 0 -> Simple , 1 -> Ranked
     private final int gameMode;
     private static final int SIMPLE = 0;
     private static final int RANKED = 1;
 
     // - Ranked Mode -
-    // Maximum difference beetween player's Ranks
+    // Maximum difference between player's Ranks
     private int MATCHMAKING_MAX_DIFF = 100;
-    // Amount of Rank to relax (add to MATCHMAKING_MAX_DIFF)
-    private int MATCHMAKING_RELAX = 100;
 
     // {username : position}
     // Stores the client's queue position when he disconnects
@@ -57,8 +47,8 @@ public class Server {
     private final Map<String, Integer> reconnectPosition;
 
     public Server(int gameMode) throws IOException{
-        this.clientQueue = new ArrayList<Client>();
-        this.gameList = new ArrayList<Game>();
+        this.clientQueue = new ArrayList<>();
+        this.gameList = new ArrayList<>();
         this.userDatabase = new UserDatabase();
         this.gameMode = gameMode;
         this.loggedInUsers = new HashSet<>();
@@ -86,7 +76,7 @@ public class Server {
             scheduleMatchmakingRelax();
         }
 
-        this.reconnectPosition = new HashMap<String,Integer>();
+        this.reconnectPosition = new HashMap<>();
     }
 
     private void writeToClient(Socket clientSocket, String message) throws IOException{
@@ -248,7 +238,7 @@ public class Server {
 
     // Function that returns the list of players to start a ranked game with close rank
     private List<Client> getPlayerListRanked() {
-        List<Client> playerList = new ArrayList<Client>();
+        List<Client> playerList = new ArrayList<>();
         
         for (int i1 = 0; i1 < clientQueue.size(); i1++) {
             playerList.clear();
@@ -330,6 +320,9 @@ public class Server {
     }
 
     private void schedulePing() throws IOException {
+        // - Time Intervals (in seconds) -
+        // Interval to send PING to all clients
+        int PING_INTERVAL = 3;
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 pingAllClients();
@@ -340,9 +333,11 @@ public class Server {
     }
 
     private void scheduleNotifyQueuePos() throws IOException {
+        // Interval to notify clients of their Queue position
+        int NOTIFY_QUEUE_POS_INTERVAL = 10;
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                notifyAllClientsPositions();;
+                notifyAllClientsPositions();
             } catch (IOException e) {
                 System.out.println("[ERROR] Failed to notify clients positions: " + e.getMessage());
             }
@@ -351,7 +346,7 @@ public class Server {
 
     // Sends a message to the Client regarding his Queue position
     private void notifyClientPosition(Client client, int position) throws IOException {
-        String message = "Your queue position: " + String.valueOf(position);
+        String message = "Your queue position: " + position;
         writeToClient(client.getSocket(), message);
     }
 
@@ -389,11 +384,15 @@ public class Server {
     }
 
     private void relaxMatchmaking() {
+        // Amount of Rank to relax (add to MATCHMAKING_MAX_DIFF)
+        int MATCHMAKING_RELAX = 100;
         MATCHMAKING_MAX_DIFF += MATCHMAKING_RELAX;
         System.out.println("[MATCHMAKING] Increased Max Difference to " + MATCHMAKING_MAX_DIFF);
     }
 
     private void scheduleMatchmakingRelax() throws IOException {
+        // Interval to relax Matchmaking
+        int RELAX_MATCHMAKING_INTERVAL = 30;
         scheduler.scheduleAtFixedRate(() -> {
             relaxMatchmaking();
             checkForNewGame();

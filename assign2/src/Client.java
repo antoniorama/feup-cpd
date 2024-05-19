@@ -6,13 +6,12 @@ public class Client {
 
     private String username;
     private int rank;
-    private Socket socket;
+    private final Socket socket;
     private long lastResponseTime;
-    private BufferedReader consoleReader;
-    private BufferedReader serverReader;
-    private PrintWriter serverWriter;
+    private final BufferedReader consoleReader;
+    private final BufferedReader serverReader;
+    private final PrintWriter serverWriter;
     private String sessionToken;
-
 
     public Client(Socket socket) throws IOException {
         this.socket = socket;
@@ -138,7 +137,7 @@ public class Client {
 
     private void readServerMessages() throws IOException {
         String serverMessage;
-        while ((serverMessage = serverReader.readLine()) != null) {
+        while (!socket.isClosed() && (serverMessage = serverReader.readLine()) != null) {
             handleServerMessage(serverMessage);
         }
     }
