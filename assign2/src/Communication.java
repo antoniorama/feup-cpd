@@ -7,10 +7,12 @@ public class Communication {
     public static final String CLIENT_AUTH = "CLIENT_AUTH";
     // Client informs Server he wants to reconnect
     public static final String CLIENT_RECONNECT = "CLIENT_RECONNECT";
+    // Client informs server he disconnected
+    public static final String CLIENT_DISCONNECT = "CLIENT_DISCONNECT";
     // Server asks Client for username
-    public static final String AUTH = "AUTH";
+    public static final String USERNAME = "USERNAME";
     // Server asks Client for password
-    public static final String PASS = "PASS";
+    public static final String PASSWORD = "PASSWORD";
     // Server confirms successful authentication
     public static final String AUTH_SUCCESS = "AUTH_SUCCESS";
     // Server informs about failed authentication
@@ -18,7 +20,7 @@ public class Communication {
     // Server informs that the User is already logged in
     public static final String AUTH_ALREADY_LOGGED_IN = "AUTH_ALREADY_LOGGED_IN";
     // Hash Set with Authentication messages
-    public static final Set<String> AUTH_MESSAGES = Set.of(AUTH, PASS, AUTH_SUCCESS, AUTH_FAIL, AUTH_ALREADY_LOGGED_IN);
+    public static final Set<String> AUTH_MESSAGES = Set.of(USERNAME, PASSWORD, AUTH_SUCCESS, AUTH_FAIL, AUTH_ALREADY_LOGGED_IN);
     // Ping
     public static final String PING = "PING";
     // Pong (Answer to Ping)

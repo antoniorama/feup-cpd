@@ -103,6 +103,7 @@ public class UserDatabase {
     }
 
     public void createUser(String username, String password) throws IOException {
+
         if (!users.containsKey(username)) {
             String encodedPassword = passwordEncoder.encode(password);
             User newUser = new User(encodedPassword, 100);

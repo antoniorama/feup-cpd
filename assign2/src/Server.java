@@ -101,6 +101,10 @@ public class Server {
         Client client = new Client(socket);
         String clientAction = questionClient(client);
 
+        if (clientAction == null || clientAction.isEmpty()) {
+            return;
+        }
+
         String command = clientAction.split(" ")[0];
 
         switch (command) {
@@ -116,9 +120,7 @@ public class Server {
 
             case Communication.CLIENT_REGISTER:
                 System.out.println("[AUTH] A Client is creating a new account");
-                String username = clientAction.split(" ")[1];
-                String password = clientAction.split(" ")[2];
-                registerClient(client, username, password);
+                handleClientRegistration(client);
                 break;
         
             default:
@@ -129,6 +131,7 @@ public class Server {
     // Questions client what he wants to do and returns desired mode
     // 1. Log In
     // 2. Reconnect with Token
+    // 3. Register
     private String questionClient(Client client) throws IOException{
         writeToClient(client.getSocket(), Communication.WELCOME);
         return readFromClient(client.getSocket());
@@ -161,18 +164,18 @@ public class Server {
             userLoggedIn(client.getUsername());
             addClientToQueue(client);
         } else {
-            System.out.println("[AUTH] " + client.getUsername() + " failed authentication");
+            System.out.println("[AUTH] " + (client.getUsername() != null ? client.getUsername() : "Client") + " failed authentication");
             writeToClient(client.getSocket(), Communication.AUTH_FAIL);
             client.getSocket().close();
         }
     }
 
     private boolean authenticateClient(Client client) throws IOException{
-        writeToClient(client.getSocket(), Communication.AUTH);
+        writeToClient(client.getSocket(), Communication.USERNAME);
         String username = readFromClient(client.getSocket());
         client.setUsername(username);
 
-        writeToClient(client.getSocket(), Communication.PASS);
+        writeToClient(client.getSocket(), Communication.PASSWORD);
         String password = readFromClient(client.getSocket());
 
         userDatabase_lock.lock();
@@ -192,6 +195,56 @@ public class Server {
         }
 
         return authSuccess;
+    }
+
+    private void handleClientRegistration(Client client) throws IOException {
+        if (registerClient(client)) {
+            System.out.println("[AUTH] " + client.getUsername() + " registered successfully");
+            writeToClient(client.getSocket(), Communication.REGISTER_SUCCESS);
+            handleClient(client.getSocket());
+
+        } else {
+            writeToClient(client.getSocket(), Communication.REGISTER_FAIL);
+            System.out.println("[AUTH] " + (client.getUsername() != null ? client.getUsername() : "Client") + " failed registration");
+            client.getSocket().close();
+        }
+    }
+
+    private boolean registerClient(Client client) throws IOException {
+        writeToClient(client.getSocket(), Communication.USERNAME);
+        String username = readFromClient(client.getSocket());
+        client.setUsername(username);
+
+        writeToClient(client.getSocket(), Communication.PASSWORD);
+        String password = readFromClient(client.getSocket());
+
+        if (username == null || password == null || username.isEmpty() || password.isEmpty()) {
+            return false;
+        }
+
+        userDatabase_lock.lock();
+        try {
+            userDatabase.createUser(username, password);
+            String log = String.format("[AUTH] New account created -> %s:%s", username, password);
+            System.out.println(log);
+
+        } catch (IOException e) {
+            handleRegistrationError(client, e);
+            return false;
+        } finally {
+            userDatabase_lock.unlock();
+        }
+
+        return true;
+    }
+
+    private void handleRegistrationError(Client client, Exception e) {
+        try {
+            writeToClient(client.getSocket(), Communication.REGISTER_FAIL);
+        } catch (IOException e2) {
+            System.out.println("[AUTH] Error communicating with Client: " + e.getMessage());
+        }
+        System.out.println("[AUTH] Client failed registration: " + e.getMessage());
     }
 
     // Adds a Client to the clientQueue
@@ -465,6 +518,10 @@ public class Server {
         writeToClient(client.getSocket(), Communication.REQUEST_TOKEN);
         String providedToken = readFromClient(client.getSocket());
 
+        if (providedToken == null || providedToken.isEmpty()) {
+            return false;
+        }
+
         userDatabase_lock.lock();
 
         try {
@@ -511,30 +568,6 @@ public class Server {
         } finally {
             clientQueue_lock.unlock();
         }
-    }
-
-    private void registerClient(Client client, String username, String password) {
-        userDatabase_lock.lock();
-        try {
-            userDatabase.createUser(username, password);
-            String log = String.format("[AUTH] New account created -> %s:%s", username, password);
-            System.out.println(log);
-            writeToClient(client.getSocket(), Communication.REGISTER_SUCCESS);
-            handleClient(client.getSocket());
-        } catch (Exception e) {
-            handleRegistrationError(client, e);
-        } finally {
-            userDatabase_lock.unlock();
-        }
-    }
-
-    private void handleRegistrationError(Client client, Exception e) {
-        try {
-            writeToClient(client.getSocket(), Communication.REGISTER_FAIL);
-        } catch (IOException e2) {
-            System.out.println("[AUTH] Error communicating with Client: " + e.getMessage());
-        }
-        System.out.println("[AUTH] Client failed registration: " + e.getMessage());
     }
 
     public void reQueuePlayers(List<Client> clients) throws IOException {
