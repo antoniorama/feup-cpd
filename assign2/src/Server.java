@@ -24,9 +24,9 @@ public class Server {
     private final List<Client> clientQueue;
     private final ReentrantLock clientQueue_lock = new ReentrantLock();
 
-    // Game List
-    private final List<Game> gameList;
-    private final ReentrantLock gameList_lock = new ReentrantLock();
+    // Game ID
+    private int gameId;
+    private final ReentrantLock gameId_lock = new ReentrantLock();
 
     // Database
     private final UserDatabase userDatabase;
@@ -49,11 +49,11 @@ public class Server {
 
     public Server(int gameMode) throws IOException{
         this.clientQueue = new ArrayList<>();
-        this.gameList = new ArrayList<>();
         this.userDatabase = new UserDatabase();
         this.gameMode = gameMode;
         this.loggedInUsers = new HashSet<>();
         this.gameThreadPool = Executors.newVirtualThreadPerTaskExecutor();
+        this.gameId = 1;
 
         File directory = new File("src/database/tokens/");
         if (directory.exists()) {
@@ -145,15 +145,18 @@ public class Server {
 
     private void userLoggedOut(String username) {
         loggedInUsers_lock.lock();
-        loggedInUsers.remove(username);
-        loggedInUsers_lock.unlock();
+        try { loggedInUsers.remove(username); }
+        finally { loggedInUsers_lock.unlock(); }
     }
 
     private boolean isUserLoggedIn(String username) {
         loggedInUsers_lock.lock();
-        boolean result = loggedInUsers.contains(username);
-        loggedInUsers_lock.unlock();
-        return result;
+        try { 
+            boolean result = loggedInUsers.contains(username); 
+            return result;
+        } finally {
+            loggedInUsers_lock.unlock();
+        }
     }
 
     private void handleClientAuthentication(Client client) throws IOException{
@@ -170,31 +173,43 @@ public class Server {
         }
     }
 
-    private boolean authenticateClient(Client client) throws IOException{
+    private boolean authenticateClient(Client client) throws IOException {
         writeToClient(client.getSocket(), Communication.USERNAME);
         String username = readFromClient(client.getSocket());
         client.setUsername(username);
-
+    
         writeToClient(client.getSocket(), Communication.PASSWORD);
         String password = readFromClient(client.getSocket());
-
+    
+        boolean authSuccess = false;
+        int userRank = -1;
+    
         userDatabase_lock.lock();
-        boolean authSuccess = userDatabase.authenticate(username, password);
-
-        // get the rank of current user
-        if (authSuccess) {
-            int userRank = userDatabase.getUserRank(username);
-            client.setRank(userRank);
+        try {
+            if (isUserLoggedIn(username)) {
+                writeToClient(client.getSocket(), Communication.AUTH_ALREADY_LOGGED_IN);
+                System.out.println("[AUTH] " + username + " is already logged in");
+                return false;
+            }
+    
+            authSuccess = userDatabase.authenticate(username, password);
+            if (authSuccess) {
+                userRank = userDatabase.getUserRank(username);
+                client.setRank(userRank);
+                loggedInUsers.add(username);
+            }
+        } finally {
+            userDatabase_lock.unlock();
         }
-        userDatabase_lock.unlock();
-
-        if (isUserLoggedIn(username)) {
-            writeToClient(client.getSocket(), Communication.AUTH_ALREADY_LOGGED_IN);
-            System.out.println("[AUTH] " + username + " is already logged in");
+    
+        if (!authSuccess) {
+            writeToClient(client.getSocket(), Communication.AUTH_FAIL);
+            System.out.println("[AUTH] " + username + " failed authentication");
+            client.getSocket().close();
             return false;
         }
-
-        return authSuccess;
+    
+        return true;
     }
 
     private void handleClientRegistration(Client client) throws IOException {
@@ -250,43 +265,62 @@ public class Server {
     // Adds a Client to the clientQueue
     private void addClientToQueue(Client client) throws IOException{
         clientQueue_lock.lock();
-        clientQueue.add(client);
-        notifyClientPosition(client, clientQueue.size());
-        String log = String.format("[QUEUE] Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
-        System.out.println(log);
-        checkForNewGame();
-        clientQueue_lock.unlock();
+        try {
+            clientQueue.add(client);
+            notifyClientPosition(client, clientQueue.size());
+            String log = String.format("[QUEUE] Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
+            System.out.println(log);
+            checkForNewGame();
+        } finally {
+            clientQueue_lock.unlock();
+        }
     }
 
     // TODO -> refactor this to the previous function
     // Adds a Client to the clientQueue with specific pos
     private void addClientToQueuePos(Client client, int queuePos) throws IOException{
         clientQueue_lock.lock();
-        clientQueue.add(queuePos - 1, client);
-        notifyClientPosition(client, queuePos);
-        String log = String.format("[QUEUE] Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
-        System.out.println(log);
-        clientQueue_lock.unlock();
+        try {
+            clientQueue.add(queuePos - 1, client);
+            notifyClientPosition(client, queuePos);
+            String log = String.format("[QUEUE] Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
+            System.out.println(log);
+        } finally {
+            clientQueue_lock.unlock();
+        }
     }
 
     // Checks if a new Game should start
-    private void checkForNewGame() throws IOException{
+    private void checkForNewGame() throws IOException {
+        List<Client> playerList = null;
+        boolean startGame = false;
+    
         clientQueue_lock.lock();
-        if (clientQueue.size() >= PLAYERS_PER_GAME) {
-            switch (gameMode) {
-                case SIMPLE:
-                    startNewGame(clientQueue);     
-                    clientQueue.clear();
-                case RANKED:
-                    List<Client> playerList = getPlayerListRanked();
-                    if (playerList != null) {
-                        removeClientsFromQueue(playerList);
-                        startNewGame(playerList);
-                        MATCHMAKING_MAX_DIFF = 100;
-                    }
+        try {
+            if (clientQueue.size() >= PLAYERS_PER_GAME) {
+                switch (gameMode) {
+                    case SIMPLE:
+                        playerList = new ArrayList<>(clientQueue);
+                        clientQueue.clear();
+                        startGame = true;
+                        break;
+                    case RANKED:
+                        playerList = getPlayerListRanked();
+                        if (playerList != null) {
+                            removeClientsFromQueue(playerList);
+                            MATCHMAKING_MAX_DIFF = 100;
+                            startGame = true;
+                        }
+                        break;
+                }
             }
+        } finally {
+            clientQueue_lock.unlock();
         }
-        clientQueue_lock.unlock();
+    
+        if (startGame && playerList != null) {
+            startNewGame(playerList);
+        }
     }
 
     // Removes clientsToRemove from Queue
@@ -331,9 +365,10 @@ public class Server {
 
     // Starts a new game with players (Clients) in playerList
     private void startNewGame(List<Client> playerList) throws IOException {
-        gameList_lock.lock();
+        gameId_lock.lock();
+        userDatabase_lock.lock();
         try {
-            Game game = new Game(gameList.size() + 1, new ArrayList<>(playerList), userDatabase, userDatabase_lock, this);
+            Game game = new Game(gameId++, new ArrayList<>(playerList), userDatabase, userDatabase_lock, this);
 
             gameThreadPool.execute(() -> {
                 try {
@@ -342,12 +377,12 @@ public class Server {
                     serverLog(e.getMessage());
                 }
             });
-            gameList.add(game);
-            String log = String.format("[Game %d] Started Game", gameList.size());
+            String log = String.format("[Game %d] Started Game", game.getId());
             System.out.println(log);
         } finally {
-            gameList_lock.unlock();
-        } 
+            userDatabase_lock.unlock();
+            gameId_lock.unlock();
+        }
     }
 
     // Pings client
@@ -420,7 +455,7 @@ public class Server {
             } catch (IOException e) {
                 System.out.println("[ERROR] Failed to notify clients positions: " + e.getMessage());
             }
-        }, 0, NOTIFY_QUEUE_POS_INTERVAL, TimeUnit.SECONDS);
+        }, NOTIFY_QUEUE_POS_INTERVAL, NOTIFY_QUEUE_POS_INTERVAL, TimeUnit.SECONDS);
     }
 
     // Sends a message to the Client regarding his Queue position
@@ -432,10 +467,13 @@ public class Server {
     // Notifies all clients of their Queue position
     private void notifyAllClientsPositions() throws IOException {
         clientQueue_lock.lock();
-        for (int i = 0; i < clientQueue.size(); i++) {
-            notifyClientPosition(clientQueue.get(i), i + 1);
+        try {
+            for (int i = 0; i < clientQueue.size(); i++) {
+                notifyClientPosition(clientQueue.get(i), i + 1);
+            }
+        } finally {
+            clientQueue_lock.unlock();
         }
-        clientQueue_lock.unlock();
     }
 
     // Choose Mode, Simple or Ranked
