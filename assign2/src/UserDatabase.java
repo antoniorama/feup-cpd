@@ -50,6 +50,16 @@ public class UserDatabase {
         }
     }
 
+    // Increments User rank by 'addedRank'
+    public void incrementRank(String username, int addedRank) throws IOException{
+        User user = users.get(username);
+        if (user != null) {
+            int currRank = user.getRank();
+            user.setRank(currRank + addedRank);
+            saveUsers();
+        }
+    }
+
     public int getUserRank(String username) {
         User user = users.get(username);
         return user != null ? user.getRank() : -1; // Return -1 if user is not found

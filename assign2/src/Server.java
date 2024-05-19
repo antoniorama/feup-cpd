@@ -8,7 +8,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class Server {
@@ -19,19 +18,19 @@ public class Server {
     private final int MAX_NUMBER_GAMES = 5;
     private final int PLAYERS_PER_GAME = 2;
     private final Set<String> loggedInUsers;
-    private final Lock loggedInUsers_lock = new ReentrantLock();
+    private final ReentrantLock loggedInUsers_lock = new ReentrantLock();
 
     // Client Queue
     private final List<Client> clientQueue;
-    private final Lock clientQueue_lock = new ReentrantLock();
+    private final ReentrantLock clientQueue_lock = new ReentrantLock();
 
     // Game List
     private final List<Game> gameList;
-    private final Lock gameList_lock = new ReentrantLock();
+    private final ReentrantLock gameList_lock = new ReentrantLock();
 
     // Database
     private final UserDatabase userDatabase;
-    private final Lock userDatabase_lock = new ReentrantLock();
+    private final ReentrantLock userDatabase_lock = new ReentrantLock();
 
     // Game Mode : 0 -> Simple , 1 -> Ranked
     private final int gameMode;
@@ -217,7 +216,7 @@ public class Server {
     }
 
     // Checks if a new Game should start
-    private void checkForNewGame() {
+    private void checkForNewGame() throws IOException{
         clientQueue_lock.lock();
         if (clientQueue.size() >= PLAYERS_PER_GAME) {
             switch (gameMode) {
@@ -276,14 +275,18 @@ public class Server {
     }
 
     // Starts a new game with players (Clients) in playerList
-    private void startNewGame(List<Client> playerList) {
+    private void startNewGame(List<Client> playerList) throws IOException {
         gameList_lock.lock();
         try {
-            Game game = new Game(gameList.size() + 1, new ArrayList<>(playerList));
+            Game game = new Game(gameList.size() + 1, new ArrayList<>(playerList), userDatabase, userDatabase_lock);
 
             gameThreadPool.execute(() -> {
-                System.out.println("executed");
-                game.startGame();
+                try {
+                    System.out.println("executed");
+                    game.startGame();
+                } catch (IOException e) {
+                    serverLog(e.getMessage());
+                }
             });
             gameList.add(game);
             String log = String.format("[Game %d] Started Game", gameList.size());
@@ -416,8 +419,12 @@ public class Server {
         // Interval to relax Matchmaking
         int RELAX_MATCHMAKING_INTERVAL = 30;
         scheduler.scheduleAtFixedRate(() -> {
-            relaxMatchmaking();
-            checkForNewGame();
+            try {
+                relaxMatchmaking();
+                checkForNewGame();
+            } catch (IOException e) {
+                serverLog(e.getMessage());
+            }
         }, RELAX_MATCHMAKING_INTERVAL, RELAX_MATCHMAKING_INTERVAL, TimeUnit.SECONDS);
     }
 

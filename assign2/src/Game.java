@@ -21,13 +21,20 @@ public class Game {
     private volatile boolean isGameRunning;
     private final int ROUNDS = 4;
     private ExecutorService playerThreadPool;
+    private UserDatabase userDatabase;
+    private ReentrantLock userDatabase_lock;
 
-    public Game(int gameId, List<Client> playerList) {
+    // Amount of rank a player wins (or looses) at the end of a game
+    private final int RANK_INCREMENT = 50;
+
+    public Game(int gameId, List<Client> playerList, UserDatabase userDatabase, ReentrantLock userDatabase_lock) {
         this.gameId = gameId;
         this.playerList = playerList;
         this.triviaResponse = new TriviaResponse();
         this.isGameRunning = false;
         this.playerThreadPool = Executors.newVirtualThreadPerTaskExecutor();
+        this.userDatabase = userDatabase;
+        this.userDatabase_lock = userDatabase_lock;
     }
 
     public void loadQuestions(String dataPath) {
@@ -40,7 +47,7 @@ public class Game {
         }
     }
 
-    public void startGame() {
+    public void startGame() throws IOException {
         loadQuestions("src/database/questions.json");
         isGameRunning = true;
         broadcastMessage("Welcome to the Trivia!");
@@ -54,7 +61,7 @@ public class Game {
         loop();
     }
 
-    private void loop() {
+    private void loop() throws IOException{
         for (int round = 0; round < ROUNDS && isGameRunning; round++) {
             String log = String.format("[Game %d] Started Round %d", gameId, round + 1);
             Server.serverLog(log);
@@ -64,11 +71,12 @@ public class Game {
     }
 
 
-    private void endGame() {
+    private void endGame() throws IOException {
         isGameRunning = false;
         Client winner = determineWinner();
         if (winner != null) {
             broadcastMessage("Game Over! The winner is: " + winner.getUsername() + " with a score of " + winner.getScore());
+            updatePlayersRanks(winner);
         } else {
             broadcastMessage("Game Over! No winner.");
         }
@@ -140,5 +148,22 @@ public class Game {
         } finally {
             latch.countDown();
         }
+    }
+
+    // Updates the player's ranks 
+    private void updatePlayersRanks(Client winner) throws IOException {
+        userDatabase_lock.lock();
+        try {
+            userDatabase.incrementRank(winner.getUsername(), RANK_INCREMENT);
+            userDatabase.incrementRank(opponent(winner).getUsername(), -RANK_INCREMENT);
+        } finally {
+            userDatabase_lock.unlock();
+        }
+    }
+
+    // Given 'player' returns it's oponent
+    private Client opponent(Client player) {
+        if (playerList.get(0).equals(player)) return playerList.get(1);
+        return playerList.get(0);
     }
 }
