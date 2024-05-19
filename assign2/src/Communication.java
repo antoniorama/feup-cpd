@@ -51,4 +51,10 @@ public class Communication {
     // Message content -> <ANSWER>
     // Example -> "ANSWER TRUE"
     public static final String ANSWER = "ANSWER";
+    // Server asks Client to requeue or quit
+    public static final String REQUEUE_OR_QUIT = "REQUEUE_OR_QUIT";
+    // Client informs Server he wants to Requeue
+    public static final String REQUEUE = "REQUEUE";
+    // Client informs Server he wants to Quit
+    public static final String QUIT = "QUIT";
 }

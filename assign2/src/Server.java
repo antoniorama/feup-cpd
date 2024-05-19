@@ -40,6 +40,7 @@ public class Server {
     // - Ranked Mode -
     // Maximum difference between player's Ranks
     private int MATCHMAKING_MAX_DIFF = 100;
+    private int MATCHMAKING_RELAX = 100; 
 
     // {username : position}
     // Stores the client's queue position when he disconnects
@@ -52,7 +53,7 @@ public class Server {
         this.userDatabase = new UserDatabase();
         this.gameMode = gameMode;
         this.loggedInUsers = new HashSet<>();
-        gameThreadPool = Executors.newVirtualThreadPerTaskExecutor();
+        this.gameThreadPool = Executors.newVirtualThreadPerTaskExecutor();
 
         File directory = new File("src/database/tokens/");
         if (directory.exists()) {
@@ -157,9 +158,8 @@ public class Server {
             System.out.println("[AUTH] " + client.getUsername() + " authenticated successfully");
             writeToClient(client.getSocket(), Communication.AUTH_SUCCESS);
             assignToken(client);
-            addClientToQueue(client);
             userLoggedIn(client.getUsername());
-            checkForNewGame();
+            addClientToQueue(client);
         } else {
             System.out.println("[AUTH] " + client.getUsername() + " failed authentication");
             writeToClient(client.getSocket(), Communication.AUTH_FAIL);
@@ -201,6 +201,7 @@ public class Server {
         notifyClientPosition(client, clientQueue.size());
         String log = String.format("[QUEUE] Client %s was added to the Queue (%d/%d)", client.getUsername(), clientQueue.size(), PLAYERS_PER_GAME);
         System.out.println(log);
+        checkForNewGame();
         clientQueue_lock.unlock();
     }
 
@@ -228,6 +229,7 @@ public class Server {
                     if (playerList != null) {
                         removeClientsFromQueue(playerList);
                         startNewGame(playerList);
+                        MATCHMAKING_MAX_DIFF = 100;
                     }
             }
         }
@@ -278,11 +280,10 @@ public class Server {
     private void startNewGame(List<Client> playerList) throws IOException {
         gameList_lock.lock();
         try {
-            Game game = new Game(gameList.size() + 1, new ArrayList<>(playerList), userDatabase, userDatabase_lock);
+            Game game = new Game(gameList.size() + 1, new ArrayList<>(playerList), userDatabase, userDatabase_lock, this);
 
             gameThreadPool.execute(() -> {
                 try {
-                    System.out.println("executed");
                     game.startGame();
                 } catch (IOException e) {
                     serverLog(e.getMessage());
@@ -408,9 +409,8 @@ public class Server {
         }
     }
 
+    // Amount of Rank to relax (add to MATCHMAKING_MAX_DIFF)
     private void relaxMatchmaking() {
-        // Amount of Rank to relax (add to MATCHMAKING_MAX_DIFF)
-        int MATCHMAKING_RELAX = 100;
         MATCHMAKING_MAX_DIFF += MATCHMAKING_RELAX;
         System.out.println("[MATCHMAKING] Increased Max Difference to " + MATCHMAKING_MAX_DIFF);
     }
@@ -535,6 +535,35 @@ public class Server {
             System.out.println("[AUTH] Error communicating with Client: " + e.getMessage());
         }
         System.out.println("[AUTH] Client failed registration: " + e.getMessage());
+    }
+
+    public void reQueuePlayers(List<Client> clients) throws IOException {
+        for (Client client : clients) {
+            requeueOrExit(client);
+        }
+    }
+
+    // Asks a client if he wasnt to requeue or exit
+    public void requeueOrExit(Client client) {
+        try {
+            writeToClient(client.getSocket(), Communication.REQUEUE_OR_QUIT);
+            String clientAnswer = readFromClient(client.getSocket());
+
+            switch (clientAnswer) {
+                case Communication.REQUEUE:
+                    addClientToQueue(client);
+                    break;
+    
+                case Communication.QUIT:
+                    client.getSocket().close();
+                    break;
+            
+                default:
+                    break;
+            }
+        } catch (IOException e) {
+            serverLog("Failed!");
+        }
     }
 
     public static void main(String[] args) {

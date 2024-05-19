@@ -23,11 +23,12 @@ public class Game {
     private ExecutorService playerThreadPool;
     private UserDatabase userDatabase;
     private ReentrantLock userDatabase_lock;
+    private final Server server;
 
     // Amount of rank a player wins (or looses) at the end of a game
     private final int RANK_INCREMENT = 50;
 
-    public Game(int gameId, List<Client> playerList, UserDatabase userDatabase, ReentrantLock userDatabase_lock) {
+    public Game(int gameId, List<Client> playerList, UserDatabase userDatabase, ReentrantLock userDatabase_lock, Server server) {
         this.gameId = gameId;
         this.playerList = playerList;
         this.triviaResponse = new TriviaResponse();
@@ -35,6 +36,7 @@ public class Game {
         this.playerThreadPool = Executors.newVirtualThreadPerTaskExecutor();
         this.userDatabase = userDatabase;
         this.userDatabase_lock = userDatabase_lock;
+        this.server = server;
     }
 
     public void loadQuestions(String dataPath) {
@@ -73,6 +75,7 @@ public class Game {
 
     private void endGame() throws IOException {
         isGameRunning = false;
+        playerThreadPool.shutdown();
         Client winner = determineWinner();
         if (winner != null) {
             broadcastMessage("Game Over! The winner is: " + winner.getUsername() + " with a score of " + winner.getScore());
@@ -80,6 +83,7 @@ public class Game {
         } else {
             broadcastMessage("Game Over! No winner.");
         }
+        server.reQueuePlayers(playerList);
     }
 
     private Client determineWinner() {

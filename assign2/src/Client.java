@@ -125,6 +125,8 @@ public class Client {
             handleRegistration(serverMessage);
         } else if (serverMessage.equals(Communication.PROVIDE_ANSWER)) {
             handleQuestionAnswer();
+        } else if (serverMessage.equals(Communication.REQUEUE_OR_QUIT)) {
+            handleRequeueOrExit();
         }
         else {
             System.out.println(serverMessage);
@@ -255,6 +257,29 @@ public class Client {
         
             default:
                 break;
+        }
+    }
+
+    private void handleRequeueOrExit() {
+        try {
+            System.out.println("1. Requeue");
+            System.out.println("2. Quit");
+            System.out.print("Select: ");
+            String answer = consoleReader.readLine();
+            switch (answer) {
+                case "1":
+                    sendMessageToServer(Communication.REQUEUE);
+                    break;
+
+                case "2":
+                    sendMessageToServer(Communication.QUIT);
+                    break;
+            
+                default:
+                    break;
+            }
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
         }
     }
 
